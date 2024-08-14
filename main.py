@@ -5,6 +5,7 @@ import sys
 from time import sleep
 
 from selenium import webdriver
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC  # noqa
@@ -27,6 +28,10 @@ with open('credentials.json') as file:
 
 logger.info('Browser driver creation...')
 chrome_options = webdriver.ChromeOptions()
+chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36")
+chrome_options.add_argument("--window-size=1920,1080")
+chrome_options.add_argument("--start-maximized")
 # chrome_options.add_argument("--headless")
 driver = webdriver.Chrome(options=chrome_options)
 logger.info('Browser driver is created.')
@@ -43,7 +48,6 @@ logger.info('Password input is filled.')
 driver.find_element(By.CSS_SELECTOR, 'button[data-qa="account-login-submit"]').click()
 logger.info('Authentication is complete.')
 
-
 @contextmanager
 def wait_for_page_load() -> None:
     old_page = driver.find_element(By.TAG_NAME, 'html')
@@ -51,7 +55,6 @@ def wait_for_page_load() -> None:
         EC.staleness_of(old_page)
     )
     yield
-
 
 def find_vacancies(vacancy: str) -> None:
     logger.info('Loading main page...')
@@ -61,12 +64,12 @@ def find_vacancies(vacancy: str) -> None:
             "https://hh.ru/search/vacancy?hhtmFrom=main&hhtmFromLabel=vacancy_search_line&search_field=name&"
             "search_field=company_name&search_field=description&enable_snippets=true&L_save_area=true&area=113&"
             f"schedule=remote&text={'+'.join(vacancy.split(' '))}"
-            
+
             # All vacancies, any job format
             # "https://hh.ru/search/vacancy?search_field=name&search_field=company_name&search_field=description&"
             # f"text={'+'.join(vacancy.split(' '))}&enable_snippets=true&L_save_area=true"
         )
-        logger.info('Page with vacancies is opened.')
+    logger.info('Page with vacancies is opened.')
 
 
 find_vacancies('Data Engineer')
@@ -92,16 +95,19 @@ for element in elements:
     ####################
     # contacts section #
     ####################
-    sleep(3)
-    button = element.find_element(By.CSS_SELECTOR, 'button[data-qa="vacancy-serp__vacancy_contacts"]')
-    button.location_once_scrolled_into_view  # noqa
+    show_contacts_button = WebDriverWait(element, timeout).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[data-qa="vacancy-serp__vacancy_contacts"]'))
+    )
+    show_contacts_button.location_once_scrolled_into_view  # noqa
+    show_contacts_button.click()
     # waiting for loading contacts form
-    # WebDriverWait(driver, timeout).until(EC.element_located_to_be_selected(
-    #     (By.CSS_SELECTOR, 'button[data-qa="bottom-sheet-content"]')
-    # ))
-    # contacts_form = driver.find_element(By.CSS_SELECTOR, 'button[data-qa="bottom-sheet-content"]')
-    # contacts_soup = BeautifulSoup(contacts_form.get_attribute('innerHTML'), "lxml")
-    # print(vacancy_name, contacts_soup)
+    contacts_form = WebDriverWait(driver, timeout).until(
+        EC.visibility_of_element_located((By.CSS_SELECTOR, 'div[data-qa="drop-base"]'))
+    )
+    contacts_soup = BeautifulSoup(contacts_form.get_attribute('innerHTML'), "lxml")
+    show_contacts_button.click()
+    # webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+    print(vacancy_name, contacts_soup)
 
     # print(vacancy_address, vacancy_employer, vacancy_name, vacancy_work_experience, vacancy_page_link)
     # print(soup)
