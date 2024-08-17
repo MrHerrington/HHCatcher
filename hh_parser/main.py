@@ -7,10 +7,11 @@ import sys
 import typing as ty
 from contextlib import contextmanager
 from pathlib import Path
+from time import perf_counter
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC  # noqa
 from selenium.webdriver.support.ui import WebDriverWait
@@ -30,8 +31,9 @@ def create_driver(headless: bool = True) -> webdriver.Chrome:
             "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/"
             "537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
         )
-        options.add_argument("--window-size=1920,1080")
         options.add_argument("--start-maximized")
+        options.add_argument("--window-size=1920,1080")
+
         if headless:
             options.add_argument("--headless")
 
@@ -180,8 +182,7 @@ def parse_page():
                 By.CSS_SELECTOR, 'button[data-qa="vacancy-serp__vacancy_contacts"]'
             ))
         )
-        show_contacts_button.location_once_scrolled_into_view  # noqa
-        show_contacts_button.click()
+        driver.execute_script("arguments[0].click();", show_contacts_button)
         # waiting for loading contacts form
         contacts_form = WebDriverWait(driver, driver.TIMEOUT).until(  # noqa
             EC.presence_of_element_located((
@@ -211,6 +212,8 @@ def parse_page():
         except (Exception,):
             vacancy_hr_email = None
 
+        driver.execute_script("arguments[0].click();", show_contacts_button)
+
         print(vacancy_address)
         print(vacancy_name)
         print(vacancy_employer)
@@ -221,16 +224,31 @@ def parse_page():
         print(vacancy_hr_email)
         print('\n'*3)
 
+        parse_page.vacancies += 1  # noqa
+
 
 def parse_source():
-    next_page = driver.find_element(By.CSS_SELECTOR, 'a[data-qa="pager-next"]')
-    if not next_page:
+    parse_page.vacancies = 0
+    parse_source.pages = 0
+
+    while True:
         parse_page()
-    else:
-        pass
+        parse_source.pages += 1
+
+        try:
+            next_page = driver.find_element(By.CSS_SELECTOR, 'a[data-qa="pager-next"]')
+            driver.execute_script("arguments[0].click();", next_page)
+            WebDriverWait(driver, driver.TIMEOUT).until(  # noqa
+                EC.url_changes(driver.current_url)
+            )
+
+        except NoSuchElementException:
+            break
 
 
 if __name__ == '__main__':
+    start_time = perf_counter()
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - [%(levelname)s]: %(message)s",
@@ -238,7 +256,12 @@ if __name__ == '__main__':
     )
     logger = logging.getLogger(__name__)
 
-    driver = create_driver(headless=True)
+    driver = create_driver(headless=False)
     log_in('../credentials.json')
     find_vacancies('Data Engineer')
-    parse_page()
+
+    # parse_source()
+
+    # logger.info(f'Parsed {parse_page.vacancies} relevant vacancies '  # noqa
+    #             f'from {parse_source.pages} pages.')  # noqa
+    # logger.info(f'Completed for total time: {perf_counter() - start_time} seconds.')
