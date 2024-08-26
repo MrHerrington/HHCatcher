@@ -9,6 +9,8 @@ import logging
 import sys
 from time import perf_counter
 
+import chromedriver_autoinstaller
+
 from hh_parser.core import (
     create_driver, log_in, find_vacancies, parse_source
 )
@@ -23,6 +25,8 @@ if __name__ == '__main__':
         stream=sys.stdout
     )
     logger = logging.getLogger(__name__)
+
+    chromedriver_autoinstaller.install()
 
     driver = create_driver(logger, headless=True)
     log_in(driver, '../credentials.json', logger)

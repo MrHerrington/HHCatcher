@@ -15,6 +15,7 @@ Functions:
 
 import json
 import logging
+import os
 import typing as ty
 from contextlib import contextmanager
 from pathlib import Path
@@ -61,6 +62,8 @@ def create_driver(logger: logging.Logger, headless: bool = True) -> webdriver.Ch
         )
         options.add_argument("--start-maximized")
         options.add_argument("--window-size=1920,1080")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
 
         if headless:
             options.add_argument("--headless")
@@ -120,10 +123,14 @@ def log_in(driver: webdriver.Chrome, creds_path: ty.Union[Path, str], logger: lo
             ty.Callable: Login and password as creds properties.
 
         """
-        with open(creds_path) as file:
-            creds_ = json.load(file)
-            __get_creds.LOGIN = creds_['credentials']['login']
-            __get_creds.PASSWORD = creds_['credentials']['password']
+        try:
+            with open(creds_path) as file:
+                creds_ = json.load(file)
+                __get_creds.LOGIN = creds_['credentials']['login']
+                __get_creds.PASSWORD = creds_['credentials']['password']
+        except FileNotFoundError:
+            __get_creds.LOGIN = os.environ.get('LOGIN')
+            __get_creds.PASSWORD = os.environ.get('PASSWORD')
 
         return __get_creds
 
