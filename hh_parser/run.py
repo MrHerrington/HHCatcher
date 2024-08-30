@@ -14,6 +14,7 @@ import chromedriver_autoinstaller
 from hh_parser.core import (
     create_driver, log_in, find_vacancies, parse_source
 )
+from hh_parser.tools import EmptyPageException
 
 
 if __name__ == '__main__':
@@ -28,7 +29,7 @@ if __name__ == '__main__':
 
     chromedriver_autoinstaller.install()
 
-    driver = create_driver(logger, headless=True)
+    driver = create_driver(logger, headless=False)
     log_in(driver, '../credentials.json', logger)
     find_vacancies(driver, logger, 'Data Engineer')
     parse_source(driver)

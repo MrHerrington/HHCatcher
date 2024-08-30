@@ -16,9 +16,11 @@ Functions:
 import json
 import logging
 import os
+import re
 import typing as ty
 from contextlib import contextmanager
 from pathlib import Path
+from time import sleep
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -27,7 +29,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC  # noqa
 from selenium.webdriver.support.ui import WebDriverWait
 
-from hh_parser.tools import retry_connect
+from hh_parser.tools import retry_connect, EmptyPageException
 
 
 ###################
@@ -96,6 +98,17 @@ def wait_for_page_load(driver: webdriver.Chrome) -> None:
     yield
 
 
+def wait_less_timeout(driver: webdriver.Chrome, url: str) -> None:
+    driver.set_page_load_timeout(3)
+
+    try:
+        driver.get(url)
+    except TimeoutException:
+        driver.execute_script("window.stop();")
+
+    driver.set_page_load_timeout(driver.DEFAULT_PAGE_LOAD_TIMEOUT)  # noqa
+
+
 ##########################
 # Authentication section #
 ##########################
@@ -129,20 +142,19 @@ def log_in(driver: webdriver.Chrome, creds_path: ty.Union[Path, str], logger: lo
                 __get_creds.LOGIN = creds_['credentials']['login']
                 __get_creds.PASSWORD = creds_['credentials']['password']
         except FileNotFoundError:
-            __get_creds.LOGIN = os.environ.get('LOGIN')
-            __get_creds.PASSWORD = os.environ.get('PASSWORD')
+            logger.error('Credentials file not found. Searching login-password pair...')
+            try:
+                __get_creds.LOGIN = os.environ['LOGIN']
+                __get_creds.PASSWORD = os.environ['PASSWORD']
+            except KeyError:
+                raise KeyError('Empty login-password pair!')
 
         return __get_creds
 
     creds = __get_creds()
 
     logger.info('Authentication form opening...')
-    driver.set_page_load_timeout(3)
-    try:
-        driver.get("https://hh.ru/account/login?backurl=%2F")
-    except TimeoutException:
-        driver.execute_script("window.stop();")
-    driver.set_page_load_timeout(driver.DEFAULT_PAGE_LOAD_TIMEOUT)  # noqa
+    wait_less_timeout(driver, "https://hh.ru/account/login?backurl=%2F")
     logger.info('Authentication form is open.')
 
     WebDriverWait(driver, driver.TIMEOUT).until(  # noqa
@@ -221,6 +233,10 @@ def parse_page(driver: webdriver.Chrome) -> None:
         '//div[contains(@data-qa, "vacancy-serp__vacancy vacancy-serp__vacancy_standard") '
         'and .//*[contains(@data-qa, "vacancy-serp__vacancy_contacts")]]'
     )
+
+    if len(elements) == 0:
+        raise EmptyPageException("Empty page or source's end!")
+
     for element in elements:
         # vacancy main card info
         vacancy_soup = BeautifulSoup(element.get_attribute('innerHTML'), "lxml")
@@ -251,14 +267,35 @@ def parse_page(driver: webdriver.Chrome) -> None:
                 'span[class*="compensation-text"]'
             )[0].text
         except (Exception,):
-            vacancy_salary = None
+            currency_types = '|'.join((
+                '₽', r'\$', '€', '₸'
+            ))
+            try:
+                vacancy_salary = vacancy_soup.find(
+                    text=re.compile(currency_types)
+                ).parent.text
+            except (Exception,):
+                vacancy_salary = None
 
         try:
             vacancy_work_experience = vacancy_soup.find(attrs={
                 'data-qa': 'vacancy-serp__vacancy-work-experience'
             }).text
         except (Exception,):
-            vacancy_work_experience = None
+            exp_pattern = (
+                '|'.join(exp_level.replace(' ', r'\s') for exp_level in (
+                    'Без опыта',
+                    'Опыт 1-3 года',
+                    'Опыт 3-6 лет',
+                    'Опыт более 6 лет'
+                ))
+            )
+            try:
+                vacancy_work_experience = vacancy_soup.find(
+                        text=re.compile(exp_pattern)
+                )
+            except (Exception,):
+                vacancy_work_experience = None
 
         try:
             vacancy_page_link = vacancy_soup.find(attrs={
@@ -275,17 +312,22 @@ def parse_page(driver: webdriver.Chrome) -> None:
         )
         driver.execute_script("arguments[0].scrollIntoView();", show_contacts_button)
         driver.execute_script("arguments[0].click();", show_contacts_button)
+        sleep(0.5)
         # waiting for loading contacts form
         contacts_form = WebDriverWait(driver, driver.TIMEOUT).until(  # noqa
             EC.visibility_of_element_located((
                 By.CSS_SELECTOR, 'div[data-qa="drop-base"], div[data-qa="bloko-drop-down"]'
             ))
         )
+        sleep(0.5)
         contacts_soup = BeautifulSoup(contacts_form.get_attribute('innerHTML'), "lxml")
 
         try:
             vacancy_hr_fio = contacts_soup.find(attrs={
-                'data-qa': ['vacancy-contacts__fio', 'vacancy-serp__vacancy_contacts-fio']
+                'data-qa': ['vacancy-contacts__fio',
+                            'vacancy-serp__vacancy_contacts-fio',
+                            'title-container',
+                            'title']
             }).text
         except (Exception,):
             vacancy_hr_fio = None
@@ -294,19 +336,31 @@ def parse_page(driver: webdriver.Chrome) -> None:
             vacancy_hr_tel = ''.join(contacts_soup.find(attrs={
                 'class': ['vacancy-contacts-call-tracking__phone-number',
                           'vacancy-contacts__phone vacancy-contacts__phone_search']
-            }).text.split())[:12]  # 12 digits of +7 xxx xxx-xx-xx format
+            }).text.split())[:12]  # 11 digits of +7 xxx xxx-xx-xx format
         except (Exception,):
-            vacancy_hr_tel = None
+            try:
+                vacancy_hr_tel = contacts_soup.find(
+                    href=re.compile(
+                        r'tel:(\+7|8)\d{10}'
+                    )
+                ).text
+            except (Exception,):
+                vacancy_hr_tel = None
 
         try:
             vacancy_hr_email = contacts_soup.find(attrs={
-                'data-qa': ['vacancy-contacts__email', 'vacancy-serp__vacancy_contacts-email']
+                'data-qa': ['vacancy-contacts__email',
+                            'vacancy-serp__vacancy_contacts-email']
             }).text
         except (Exception,):
-            vacancy_hr_email = None
-
-        driver.execute_script("arguments[0].scrollIntoView();", show_contacts_button)
-        driver.execute_script("arguments[0].click();", show_contacts_button)
+            try:
+                vacancy_hr_email = contacts_soup.find(
+                    href=re.compile(
+                        r'mailto:.*@.*..*'
+                    )
+                ).text
+            except (Exception,):
+                vacancy_hr_email = None
 
         print(vacancy_address)
         print(vacancy_employer)
@@ -337,18 +391,26 @@ def parse_source(driver: webdriver.Chrome) -> None:
     """
     parse_source.vacancies = 0
     parse_source.pages = 0
+    base_page = driver.current_url
 
     while True:
-        parse_page(driver)
+        try:
+            parse_page(driver)
+        except EmptyPageException:
+            break
+
         parse_source.pages += 1
 
         try:
-            next_page = driver.find_element(By.CSS_SELECTOR, 'a[data-qa="pager-next"]')
+            next_page = driver.find_element(
+                By.CSS_SELECTOR,
+                'a[data-qa="pager-next"], a[data-qa="number-pages-next"]'
+            )
             driver.execute_script("arguments[0].scrollIntoView();", next_page)
             driver.execute_script("arguments[0].click();", next_page)
             WebDriverWait(driver, driver.TIMEOUT).until(  # noqa
                 EC.url_changes(driver.current_url)
             )
-
         except NoSuchElementException:
-            break
+            next_page = base_page + f'&page={parse_source.pages}'
+            wait_less_timeout(driver, next_page)

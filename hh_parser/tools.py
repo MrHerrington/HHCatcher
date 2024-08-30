@@ -25,6 +25,14 @@ class MaxRetriesException(Exception):
     pass
 
 
+class EmptyPageException(Exception):
+    """
+    The class of exceptions raised when parsed page does not contain any vacancies.
+
+    """
+    pass
+
+
 def retry_connect(times: int, msg: str) -> ty.Callable:
     """
     The decorator repeats the function a specified number of times when an exception occurs.
@@ -46,6 +54,8 @@ def retry_connect(times: int, msg: str) -> ty.Callable:
 
                 try:
                     return func(*args, **kwargs)
+                except EmptyPageException:
+                    raise
                 except Exception as err:
                     tries += 1
                     exceptions.append(f'{err}')
