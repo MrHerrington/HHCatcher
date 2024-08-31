@@ -13,6 +13,7 @@ Functions:
 """
 
 
+import csv
 import json
 import logging
 import os
@@ -30,6 +31,13 @@ from selenium.webdriver.support import expected_conditions as EC  # noqa
 from selenium.webdriver.support.ui import WebDriverWait
 
 from hh_parser.tools import retry_connect, EmptyPageException
+
+
+#############
+# Constants #
+#############
+
+JOBS_CSV_FILE = Path('../jobs_info.csv')
 
 
 ###################
@@ -157,11 +165,19 @@ def log_in(driver: webdriver.Chrome, creds_path: ty.Union[Path, str], logger: lo
     wait_less_timeout(driver, "https://hh.ru/account/login?backurl=%2F")
     logger.info('Authentication form is open.')
 
-    WebDriverWait(driver, driver.TIMEOUT).until(  # noqa
-        EC.element_to_be_clickable((
-            By.CSS_SELECTOR, 'button[data-qa="expand-login-by-password"]'
-        ))
-    ).click()
+    try:
+        WebDriverWait(driver, driver.TIMEOUT).until(  # noqa
+            EC.element_to_be_clickable((
+                By.CSS_SELECTOR, 'button[data-qa="expand-login-by-password"]'
+            ))
+        ).click()
+    except (Exception,):
+        WebDriverWait(driver, driver.TIMEOUT).until(  # noqa
+            EC.element_to_be_clickable((
+                By.XPATH, '//*[contains(text(), "Войти с\u00A0паролем")]'
+            ))
+        ).click()
+
     logger.info('Authentication form is switched.')
 
     WebDriverWait(driver, driver.TIMEOUT).until(  # noqa
@@ -278,7 +294,7 @@ def parse_page(driver: webdriver.Chrome) -> None:
                 vacancy_salary = None
 
         try:
-            vacancy_work_experience = vacancy_soup.find(attrs={
+            vacancy_required_experience = vacancy_soup.find(attrs={
                 'data-qa': 'vacancy-serp__vacancy-work-experience'
             }).text
         except (Exception,):
@@ -291,11 +307,11 @@ def parse_page(driver: webdriver.Chrome) -> None:
                 ))
             )
             try:
-                vacancy_work_experience = vacancy_soup.find(
+                vacancy_required_experience = vacancy_soup.find(
                         text=re.compile(exp_pattern)
                 )
             except (Exception,):
-                vacancy_work_experience = None
+                vacancy_required_experience = None
 
         try:
             vacancy_page_link = vacancy_soup.find(attrs={
@@ -356,27 +372,48 @@ def parse_page(driver: webdriver.Chrome) -> None:
             try:
                 vacancy_hr_email = contacts_soup.find(
                     href=re.compile(
-                        r'mailto:.*@.*..*'
+                        r'mailto:.*@.*.(.)*'
                     )
                 ).text
             except (Exception,):
                 vacancy_hr_email = None
 
-        print(vacancy_address)
-        print(vacancy_employer)
-        print(vacancy_name)
-        print(vacancy_salary)
-        print(vacancy_work_experience)
-        print(vacancy_page_link)
-        print(vacancy_hr_fio)
-        print(vacancy_hr_tel)
-        print(vacancy_hr_email)
-        print('\n'*3)
+        if not parse_source.vacancies:  # noqa
+            titles = (
+                'address',
+                'employer',
+                'name',
+                'salary',
+                'required_experience',
+                'page_link',
+                'hr_fio',
+                'hr_tel',
+                'hr_email'
+            )
+            with open(JOBS_CSV_FILE, 'w', encoding='utf-8', newline='') as file:
+                writer = csv.writer(file, delimiter=';')
+                writer.writerow(titles)
+
+        results_row = (
+            vacancy_address,
+            vacancy_employer,
+            vacancy_name,
+            vacancy_salary,
+            vacancy_required_experience,
+            vacancy_page_link,
+            vacancy_hr_fio,
+            vacancy_hr_tel,
+            vacancy_hr_email
+        )
+
+        with open(JOBS_CSV_FILE, 'a', encoding='utf-8', newline='') as file:
+            writer = csv.writer(file, delimiter=';')
+            writer.writerow(results_row)
 
         parse_source.vacancies += 1  # noqa
 
 
-def parse_source(driver: webdriver.Chrome) -> None:
+def parse_source(driver: webdriver.Chrome, logger: logging.Logger) -> None:
     """
     The function for parsing all pages in source.
 
@@ -384,6 +421,7 @@ def parse_source(driver: webdriver.Chrome) -> None:
 
     Args:
         driver (webdriver.Chrome): Browser driver object.
+        logger (logging.Logger): Logger object.
 
     Raises:
         MaxRetriesException: If the number of retries is exceeded.
@@ -396,6 +434,7 @@ def parse_source(driver: webdriver.Chrome) -> None:
     while True:
         try:
             parse_page(driver)
+            logger.info(f'Parsed: {parse_source.vacancies} vacancies | {parse_source.pages + 1} pages...')
         except EmptyPageException:
             break
 
