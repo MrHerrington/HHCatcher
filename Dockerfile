@@ -6,14 +6,9 @@ RUN apt-get install -y wget
 RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 RUN apt-get install ./google-chrome-stable_current_amd64.deb -y --fix-missing
 
-ARG name \
-    secret
-
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app \
-    LOGIN=${name:-NOT_DEFINED} \
-    PASSWORD=${secret:-NOT_DEFINED}
+    PYTHONPATH=/app
 
 COPY requirements.txt /app/
 RUN pip install -r /app/requirements.txt

@@ -121,7 +121,10 @@ def wait_less_timeout(driver: webdriver.Chrome, url: str) -> None:
 # Authentication section #
 ##########################
 @retry_connect(3, 'Unsuccessful authorization 3 times')
-def log_in(driver: webdriver.Chrome, creds_path: ty.Union[Path, str], logger: logging.Logger) -> None:
+def log_in(driver: webdriver.Chrome,
+           login_path: ty.Union[Path, str],
+           pass_path: ty.Union[Path, str],
+           logger: logging.Logger) -> None:
     """
     The function for authorization into source ecosystem.
 
@@ -129,7 +132,8 @@ def log_in(driver: webdriver.Chrome, creds_path: ty.Union[Path, str], logger: lo
 
     Args:
         driver (webdriver.Chrome): Browser driver object.
-        creds_path (ty.Union[Path, str]): Path to JSON file with credentials.
+        login_path (ty.Union[Path, str]): Path to file with login.
+        pass_path (ty.Union[Path, str]): Path to file with password.
         logger (logging.Logger): Logger object for logging system.
 
     Raises:
@@ -145,17 +149,21 @@ def log_in(driver: webdriver.Chrome, creds_path: ty.Union[Path, str], logger: lo
 
         """
         try:
-            with open(creds_path) as file:
-                creds_ = json.load(file)
-                __get_creds.LOGIN = creds_['credentials']['login']
-                __get_creds.PASSWORD = creds_['credentials']['password']
+            with open(login_path) as file:
+                creds_ = file.readline().strip()
+                __get_creds.LOGIN = creds_
+
+            with open(pass_path) as file:
+                creds_ = file.readline().strip()
+                __get_creds.PASSWORD = creds_
+
         except FileNotFoundError:
-            logger.error('Credentials file not found. Searching login-password pair...')
+            logger.error('Credentials files not found. Searching login-password secrets...')
             try:
-                __get_creds.LOGIN = os.environ['LOGIN']
-                __get_creds.PASSWORD = os.environ['PASSWORD']
+                __get_creds.LOGIN = os.environ['HH_LOGIN']
+                __get_creds.PASSWORD = os.environ['HH_PASSWORD']
             except KeyError:
-                raise KeyError('Empty login-password pair!')
+                raise KeyError('Empty login-password secrets!')
 
         return __get_creds
 

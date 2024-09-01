@@ -1,0 +1,17 @@
+name: hh_catcher
+services:
+    hh_parser:
+        container_name: hh_parser
+        build: .
+        environment:
+            HH_LOGIN: /run/secrets/hh_login
+            HH_PASSWORD: /run/secrets/hh_password
+        secrets:
+          - hh_login
+          - hh_password
+
+secrets:
+  hh_login:
+    file: hh_login.txt
+  hh_password:
+    file: hh_password.txt
