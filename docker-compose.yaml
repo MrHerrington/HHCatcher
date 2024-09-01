@@ -4,8 +4,8 @@ services:
         container_name: hh_parser
         build: .
         environment:
-            HH_LOGIN: /run/secrets/hh_login
-            HH_PASSWORD: /run/secrets/hh_password
+            HH_LOGIN_FILE: /run/secrets/hh_login
+            HH_PASSWORD_FILE: /run/secrets/hh_password
         secrets:
           - hh_login
           - hh_password

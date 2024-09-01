@@ -14,7 +14,6 @@ Functions:
 
 
 import csv
-import json
 import logging
 import os
 import re
@@ -152,16 +151,17 @@ def log_in(driver: webdriver.Chrome,
             with open(login_path) as file:
                 creds_ = file.readline().strip()
                 __get_creds.LOGIN = creds_
-
             with open(pass_path) as file:
                 creds_ = file.readline().strip()
                 __get_creds.PASSWORD = creds_
 
         except FileNotFoundError:
-            logger.error('Credentials files not found. Searching login-password secrets...')
             try:
-                __get_creds.LOGIN = os.environ['HH_LOGIN']
-                __get_creds.PASSWORD = os.environ['HH_PASSWORD']
+                with open(os.environ['HH_LOGIN_FILE']) as file:
+                    __get_creds.LOGIN = file.readline().strip()
+                with open(os.environ['HH_PASSWORD_FILE']) as file:
+                    __get_creds.PASSWORD = file.readline().strip()
+
             except KeyError:
                 raise KeyError('Empty login-password secrets!')
 
@@ -262,6 +262,7 @@ def parse_page(driver: webdriver.Chrome) -> None:
         raise EmptyPageException("Empty page or source's end!")
 
     for element in elements:
+        driver.execute_script("arguments[0].scrollIntoView();", element)
         # vacancy main card info
         vacancy_soup = BeautifulSoup(element.get_attribute('innerHTML'), "lxml")
 
@@ -334,17 +335,21 @@ def parse_page(driver: webdriver.Chrome) -> None:
                 By.CSS_SELECTOR, 'button[data-qa="vacancy-serp__vacancy_contacts"]'
             ))
         )
-        driver.execute_script("arguments[0].scrollIntoView();", show_contacts_button)
         driver.execute_script("arguments[0].click();", show_contacts_button)
-        sleep(0.5)
         # waiting for loading contacts form
         contacts_form = WebDriverWait(driver, driver.TIMEOUT).until(  # noqa
             EC.visibility_of_element_located((
                 By.CSS_SELECTOR, 'div[data-qa="drop-base"], div[data-qa="bloko-drop-down"]'
             ))
         )
-        sleep(0.5)
         contacts_soup = BeautifulSoup(contacts_form.get_attribute('innerHTML'), "lxml")
+        # waiting for closing contacts form
+        driver.execute_script("arguments[0].click();", show_contacts_button)
+        contacts_form = WebDriverWait(driver, driver.TIMEOUT).until(  # noqa
+            EC.invisibility_of_element_located((
+                By.CSS_SELECTOR, 'div[data-qa="drop-base"], div[data-qa="bloko-drop-down"]'
+            ))
+        )
 
         try:
             vacancy_hr_fio = contacts_soup.find(attrs={
