@@ -1,17 +1,40 @@
 name: hh_catcher
 services:
-    hh_parser:
+    parser:
         container_name: hh_parser
         build: .
         environment:
             HH_LOGIN_FILE: /run/secrets/hh_login
             HH_PASSWORD_FILE: /run/secrets/hh_password
+        volumes:
+          - type: bind
+            source: csv_vault
+            target: /csv_vault
+          - type: volume
+            source: pg_data
+            target: /var/lib/postgresql/data
         secrets:
           - hh_login
           - hh_password
+        depends_on:
+          db:
+            condition: service_healthy
+
+    db:
+        container_name: pg_db
+        image: postgres:alpine
+        restart: always
+        environment:
+            POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
 
 secrets:
   hh_login:
     file: hh_login.txt
   hh_password:
     file: hh_password.txt
+
+volumes:
+  csv_vault:
+  pg_data:

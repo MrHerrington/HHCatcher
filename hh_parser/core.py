@@ -20,7 +20,6 @@ import re
 import typing as ty
 from contextlib import contextmanager
 from pathlib import Path
-from time import sleep
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -36,7 +35,7 @@ from hh_parser.tools import retry_connect, EmptyPageException
 # Constants #
 #############
 
-JOBS_CSV_FILE = Path('../jobs_info.csv')
+JOBS_CSV_FILE = Path('../csv_vault/jobs_info.csv')
 
 
 ###################
