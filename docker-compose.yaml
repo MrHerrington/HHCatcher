@@ -23,26 +23,28 @@ services:
         restart: always
         environment:
           - POSTGRES_USER=admin
-          - POSTGRES_PASSWORD=test123
+          - POSTGRES_PASSWORD_FILE=run/secrets/pg_password
           - POSTGRES_DB=hh_results
         ports:
           - 5432:5432
-        volumes:
-          - type: volume
-            source: pg_data
-            target: /var/lib/postgresql/data
         healthcheck:
             test: [ "CMD-SHELL", "pg_isready -U admin -d hh_results" ]
             interval: 30s
             timeout: 10s
             retries: 5
+#        volumes:
+#          - type: volume
+#            source: pg_data
+#            target: /var/lib/postgresql/data
 
 secrets:
   hh_login:
     file: hh_login.txt
   hh_password:
     file: hh_password.txt
+  pg_password:
+    file: pg_password.txt
 
 volumes:
   csv_vault:
-  pg_data:
+#  pg_data:

@@ -163,4 +163,5 @@ cython_debug/
 credentials.json
 hh_login.txt
 hh_password.txt
+pg_password.txt
 *.db
