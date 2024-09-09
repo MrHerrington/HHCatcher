@@ -11,10 +11,16 @@ Functions:
       specified number of times when an exception occurs.
 
 """
-
-
+import logging
+import os
 import typing as ty
 from functools import wraps
+from pathlib import Path
+
+import psycopg2
+
+
+logger = logging.getLogger(__name__)
 
 
 class MaxRetriesException(Exception):
@@ -63,3 +69,17 @@ def retry_connect(times: int, msg: str) -> ty.Callable:
 
         return inner_wrapper
     return outer_wrapper
+
+
+def get_db_password(secrets_path: ty.Union[Path, str], secrets_env_var: str) -> str:
+    try:
+        return get_db_password.PASSWORD
+    except AttributeError:
+        try:
+            with open(secrets_path) as file:
+                get_db_password.PASSWORD = file.readline().strip()
+        except (Exception,):
+            with open(os.environ[secrets_env_var]) as file:
+                get_db_password.PASSWORD = file.readline().strip()
+
+        return get_db_password.PASSWORD

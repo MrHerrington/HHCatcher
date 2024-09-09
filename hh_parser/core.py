@@ -32,21 +32,21 @@ from hh_parser.tools import retry_connect, EmptyPageException
 
 
 #############
-# Constants #
+#  Presets  #
 #############
 
+logger = logging.getLogger(__name__)
 JOBS_CSV_FILE = Path('../csv_vault/jobs_info.csv')
 
 
 ###################
 # Driver  section #
 ###################
-def create_driver(logger: logging.Logger, headless: bool = True) -> webdriver.Chrome:
+def create_driver(headless: bool = True) -> webdriver.Chrome:
     """
     The function for creating browser driver with required options.
 
     Args:
-        logger (logging.Logger): Logger object for logging system.
         headless (bool, optional): Enable or disable headless mode. Defaults to True.
 
     Returns:
@@ -121,8 +121,7 @@ def wait_less_timeout(driver: webdriver.Chrome, url: str) -> None:
 @retry_connect(3, 'Unsuccessful authorization 3 times')
 def log_in(driver: webdriver.Chrome,
            login_path: ty.Union[Path, str],
-           pass_path: ty.Union[Path, str],
-           logger: logging.Logger) -> None:
+           pass_path: ty.Union[Path, str]) -> None:
     """
     The function for authorization into source ecosystem.
 
@@ -132,7 +131,6 @@ def log_in(driver: webdriver.Chrome,
         driver (webdriver.Chrome): Browser driver object.
         login_path (ty.Union[Path, str]): Path to file with login.
         pass_path (ty.Union[Path, str]): Path to file with password.
-        logger (logging.Logger): Logger object for logging system.
 
     Raises:
         MaxRetriesException: If the number of retries is exceeded.
@@ -209,13 +207,12 @@ def log_in(driver: webdriver.Chrome,
     logger.info('Authentication is complete.')
 
 
-def find_vacancies(driver: webdriver.Chrome, logger: logging.Logger, vacancy: str) -> None:
+def find_vacancies(driver: webdriver.Chrome, vacancy: str) -> None:
     """
     The function for finding vacancies on the main page and waiting for page load.
 
     Args:
         driver (webdriver.Chrome): Browser driver object.
-        logger (logging.Logger): Logger object for logging system.
         vacancy (str): Search query.
 
     """
@@ -425,7 +422,7 @@ def parse_page(driver: webdriver.Chrome) -> None:
         parse_source.vacancies += 1  # noqa
 
 
-def parse_source(driver: webdriver.Chrome, logger: logging.Logger) -> None:
+def parse_source(driver: webdriver.Chrome) -> None:
     """
     The function for parsing all pages in source.
 
@@ -433,7 +430,6 @@ def parse_source(driver: webdriver.Chrome, logger: logging.Logger) -> None:
 
     Args:
         driver (webdriver.Chrome): Browser driver object.
-        logger (logging.Logger): Logger object.
 
     Raises:
         MaxRetriesException: If the number of retries is exceeded.

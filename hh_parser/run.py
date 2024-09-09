@@ -28,10 +28,10 @@ if __name__ == '__main__':
 
     chromedriver_autoinstaller.install()
 
-    driver = create_driver(logger, headless=True)
-    log_in(driver, '../hh_login.txt', '../hh_password.txt', logger)
-    find_vacancies(driver, logger, 'Data Engineer')
-    parse_source(driver, logger)
+    driver = create_driver(headless=True)
+    log_in(driver, '../hh_login.txt', '../hh_password.txt')
+    find_vacancies(driver, 'Data Engineer')
+    parse_source(driver)
 
     logger.info(f'Parsed {parse_source.vacancies} relevant vacancies '  # noqa
                 f'from {parse_source.pages} pages.')  # noqa
