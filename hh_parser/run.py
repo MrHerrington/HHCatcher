@@ -1,38 +1,76 @@
-# -*- coding: utf-8 -*-
-"""
-The main script. Runs scrapping of hh.ru process for searching relevant vacancies.
-
-"""
-
-
 import logging
 import sys
-from time import perf_counter
 
-import chromedriver_autoinstaller
+import psycopg2
 
-from hh_parser.core import (
-    create_driver, log_in, find_vacancies, parse_source
-)
+from hh_parser.tools import get_db_password
 
 
-if __name__ == '__main__':
-    start_time = perf_counter()
-
-    logging.basicConfig(
+logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s]: %(message)s",
         stream=sys.stdout
-    )
-    logger = logging.getLogger(__name__)
+)
+logger = logging.getLogger(__name__)
 
-    chromedriver_autoinstaller.install()
+pg_password = get_db_password('../pg_password.txt', 'POSTGRES_PASSWORD_FILE')
+connection = psycopg2.connect(
+    database='hh_results',
+    user='admin',
+    password=pg_password,
+    host='172.18.0.2',
+    port='5432'
+)
 
-    driver = create_driver(headless=True)
-    log_in(driver, '../hh_login.txt', '../hh_password.txt')
-    find_vacancies(driver, 'Data Engineer')
-    parse_source(driver)
+with connection:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            # '''
+            #
+            # CREATE TABLE IF NOT EXISTS vacancies (
+            #
+            #   id smallint SERIAL PRIMARY KEY,
+            #   address VARCHAR DEFAULT NULL,
+            #   employer VARCHAR DEFAULT NULL,
+            #   position VARCHAR DEFAULT NULL,
+            #   salary VARCHAR DEFAULT NULL,
+            #   required_experience VARCHAR DEFAULT NULL,
+            #   page_link VARCHAR DEFAULT NULL,
+            #   hr_fio VARCHAR DEFAULT NULL,
+            #   hr_tel VARCHAR DEFAULT NULL,
+            #   hr_email VARCHAR DEFAULT NULL
+            #
+            # );
+            #
+            # '''
 
-    logger.info(f'Parsed {parse_source.vacancies} relevant vacancies '  # noqa
-                f'from {parse_source.pages} pages.')  # noqa
-    logger.info(f'Completed for total time: {perf_counter() - start_time} seconds.')
+            '''
+            
+            DROP TABLE IF EXISTS temp;
+            
+            CREATE TABLE IF NOT EXISTS temp (id integer, nums integer, msg VARCHAR);
+            
+            DO $$
+            
+            DECLARE
+               x integer := 100;
+            BEGIN
+               FOR i IN 1..10 LOOP
+                  IF MOD(i,2) = 0 THEN     -- i is even
+                     INSERT INTO temp VALUES (i, x, 'i is even');
+                  ELSE
+                     INSERT INTO temp VALUES (i, x, 'i is odd');
+                  END IF;
+                  x := x + 100;
+               END LOOP;
+            END;
+            
+            $$ LANGUAGE plpgsql;
+            
+            COMMIT;
+            
+            '''
+        )
+        logger.info('Table "temp" created.')
+
+connection.close()

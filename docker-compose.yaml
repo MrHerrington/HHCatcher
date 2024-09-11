@@ -18,6 +18,9 @@ services:
         depends_on:
           pg_db:
             condition: service_healthy
+        networks:
+          default:
+            ipv4_address: 172.18.0.3
 
     pg_db:
         container_name: pg_db
@@ -36,6 +39,9 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
+        networks:
+          default:
+            ipv4_address: 172.18.0.2
 #        volumes:
 #          - type: volume
 #            source: pg_data
@@ -52,3 +58,10 @@ secrets:
 volumes:
   csv_vault:
 #  pg_data:
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
