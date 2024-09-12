@@ -104,11 +104,22 @@ def wait_for_page_load(driver: webdriver.Chrome) -> None:
     yield
 
 
-def wait_less_timeout(driver: webdriver.Chrome, url: str) -> None:
-    driver.set_page_load_timeout(3)
+def wait_less_timeout(driver: webdriver.Chrome, url: str = None) -> None:
+    """
+    The function for waiting less than set seconds for page load.
+
+    Args:
+        driver (webdriver.Chrome): Browser driver object.
+        url (str, optional): Url to load. Defaults to None.
+
+    """
+    driver.set_page_load_timeout(5)
 
     try:
-        driver.get(url)
+        if url:
+            driver.get(url)
+        else:
+            driver.refresh()
     except TimeoutException:
         driver.execute_script("window.stop();")
 
@@ -234,7 +245,6 @@ def find_vacancies(driver: webdriver.Chrome, vacancy: str) -> None:
 ###################
 # Parsing section #
 ###################
-@retry_connect(5, 'Unsuccessful page parsing 5 times')
 def parse_page(driver: webdriver.Chrome) -> None:
     """
     The function for parsing relevant vacancies from current page.
@@ -422,7 +432,7 @@ def parse_page(driver: webdriver.Chrome) -> None:
         parse_source.vacancies += 1  # noqa
 
 
-def parse_source(driver: webdriver.Chrome) -> None:
+def parse_source(driver: webdriver.Chrome, refresh_pages_times: int = 1) -> None:
     """
     The function for parsing all pages in source.
 
@@ -430,6 +440,7 @@ def parse_source(driver: webdriver.Chrome) -> None:
 
     Args:
         driver (webdriver.Chrome): Browser driver object.
+        refresh_pages_times (int, optional): Number of retries. Defaults to 1.
 
     Raises:
         MaxRetriesException: If the number of retries is exceeded.
@@ -441,8 +452,17 @@ def parse_source(driver: webdriver.Chrome) -> None:
 
     while True:
         try:
-            parse_page(driver)
-            logger.info(f'Parsed: {parse_source.vacancies} vacancies | {parse_source.pages + 1} pages...')
+            for _ in range(refresh_pages_times):
+                try:
+                    parse_page(driver)
+                    logger.info(f'Parsed: {parse_source.vacancies} vacancies | {parse_source.pages + 1} pages...')
+                    break
+                except EmptyPageException:
+                    raise
+                except (Exception,):
+                    wait_less_timeout(driver)
+                    continue
+
         except EmptyPageException:
             break
 

@@ -41,13 +41,14 @@ def get_db_password(secrets_path: ty.Union[Path, str], secrets_env_var: str) -> 
 
 
 class DBManager:
-    def __init__(self, conn_attrs: dict):
+    def __init__(self, conn_attrs: dict) -> None:
+        self.__conn_attrs = conn_attrs
         self.__conn = psycopg2.connect(
-            database=conn_attrs['database'],
-            user=conn_attrs['user'],
-            password=conn_attrs['password'],
-            host=conn_attrs['host'],
-            port=conn_attrs['port']
+            database=self.conn_attrs['database'],
+            user=self.conn_attrs['user'],
+            password=self.conn_attrs['password'],
+            host=self.conn_attrs['host'],
+            port=self.conn_attrs['port']
         )
 
     def __getattribute__(self, attr):
@@ -55,6 +56,10 @@ class DBManager:
             return object.__getattribute__(self, attr)
         except AttributeError:
             return object.__getattribute__(self.__conn, attr)
+
+    @property
+    def conn_attrs(self) -> dict:
+        return self.__conn_attrs
 
     def execute_query(self, query: str) -> None:
         with self.__conn:
