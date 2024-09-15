@@ -95,31 +95,47 @@ async def main():
     main.db_conn: DBManager  # noqa
 
     logger.info('Create PySpark session...')
-    spark = SparkSession.builder.getOrCreate()
+    spark = SparkSession.builder \
+        .config("spark.jars", "/opt/spark/jars/postgresql-42.7.2.jar") \
+        .getOrCreate()
     logger.info('PySpark session created.')
 
     logger.info('Extracting data and preparing warehouse started...')
-    await asyncio.gather(extract_data(), prepare_warehouse())
+    # await asyncio.gather(extract_data(), prepare_warehouse())
+    await asyncio.gather(prepare_warehouse())
     logger.info('Data extracted to CSV file and warehouse prepared for writing.')
 
     logger.info('Loading process started...')
-    vacancies_data = spark.read.format('csv').option('header', 'true').load('/csv_vault/jobs_info.csv')
+    vacancies_data = spark.read.format('csv') \
+        .option('header', 'true') \
+        .option('delimiter', ';') \
+        .load('../csv_vault/jobs_info.csv') \
+        .toDF(
+            'address',
+            'employer',
+            'position',
+            'salary',
+            'required_experience',
+            'page_link',
+            'hr_fio',
+            'hr_tel',
+            'hr_email'
+        )
 
-    pg_url = 'postgres://%s:%s@%s:%s/%s' % (
-        main.db_conn.conn_attrs['user'],
-        main.db_conn.conn_attrs['password'],
+    pg_url = 'postgresql://%s:%s/%s' % (
         main.db_conn.conn_attrs['host'],
         main.db_conn.conn_attrs['port'],
         main.db_conn.conn_attrs['database']
     )
 
-    vacancies_data.write.format('jdbc').options(
-        url='jdbc:%s' % pg_url,
-        driver='org.postgresql.Driver',
-        dbtable='vacancies',
-        user=main.db_conn.conn_attrs['user'],
-        password=main.db_conn.conn_attrs['password']
-    ).mode('append').save()
+    vacancies_data.write.format('jdbc') \
+        .option('url', 'jdbc:%s' % pg_url) \
+        .option('driver', 'org.postgresql.Driver') \
+        .option('dbtable', 'vacancies') \
+        .option('user', main.db_conn.conn_attrs['user']) \
+        .option('password', main.db_conn.conn_attrs['password']) \
+        .mode('append') \
+        .save()
 
     logger.info('ETL process finished.')
 

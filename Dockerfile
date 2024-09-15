@@ -22,8 +22,10 @@ RUN pip install --upgrade pip \
  && pip install pyspark[pandas_on_spark] plotly \
  && pip install pyspark[connect]
 
+RUN wget https://jdbc.postgresql.org/download/postgresql-42.7.2.jar -P /opt/spark/jars/
+
 COPY hh_parser /app/hh_parser/
-COPY test_script.sh /app/
+# COPY test_script.sh /app/
 
 WORKDIR /app
-ENTRYPOINT ["sh", "test_script.sh"]
+ENTRYPOINT ["python", "./hh_parser/run.py"]

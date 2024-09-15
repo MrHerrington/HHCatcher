@@ -401,7 +401,7 @@ def parse_page(driver: webdriver.Chrome) -> None:
             titles = (
                 'address',
                 'employer',
-                'name',
+                'position',
                 'salary',
                 'required_experience',
                 'page_link',
