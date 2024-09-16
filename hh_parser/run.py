@@ -25,7 +25,8 @@ from hh_parser.db_utils import (
 )
 
 
-async def extract_data():
+async def extract_data() -> None:
+    """Async function for data extraction."""
     logger.info('Data extraction started...')
     start_time = perf_counter()
 
@@ -41,7 +42,8 @@ async def extract_data():
     logger.info(f'Data successfully extracted for total time: {perf_counter() - start_time} seconds.')
 
 
-async def prepare_warehouse():
+async def prepare_warehouse() -> None:
+    """Async function for data preparation."""
     logger.info('Preparing warehouse started...')
     pg_password = get_db_password('../pg_password.txt', 'POSTGRES_PASSWORD_FILE')
     db_conn = DBManager(
@@ -49,13 +51,14 @@ async def prepare_warehouse():
             'database': 'hh_results',
             'user': 'admin',
             'password': pg_password,
-            'host': '172.18.0.2',
+            'host': '172.18.0.12',
             'port': '5432'
         }
     )
 
     main.db_conn = db_conn
 
+    # prepare table for loading data
     db_conn.execute_query(
         '''
         DO $$
@@ -86,12 +89,68 @@ async def prepare_warehouse():
         $$ LANGUAGE plpgsql;
         '''
     )
+
+    # prepare trigger for replacing &nbsp and &nnbsp
+    db_conn.execute_query(
+        r'''
+        CREATE OR REPLACE FUNCTION replace_spaces_func()
+        RETURNS trigger AS $$
+        BEGIN
+          
+          IF NEW.address ~ '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+' THEN
+            NEW.address := trim(regexp_replace(NEW.address, '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+', ' ', 'g'));
+          END IF;
+        
+          IF NEW.employer ~ '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+' THEN
+            NEW.employer := trim(regexp_replace(NEW.employer, '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+', ' ', 'g'));
+          END IF;
+        
+          IF NEW.position ~ '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+' THEN
+            NEW.position := trim(regexp_replace(NEW.position, '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+', ' ', 'g'));
+          END IF;
+        
+          IF NEW.salary ~ '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+' THEN
+            NEW.salary := trim(regexp_replace(NEW.salary, '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+', ' ', 'g'));
+          END IF;
+        
+          IF NEW.required_experience ~ '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+' THEN
+            NEW.required_experience := trim(regexp_replace(NEW.required_experience, '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+', ' ', 'g'));
+          END IF;
+        
+          IF NEW.page_link ~ '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+' THEN
+            NEW.page_link := trim(regexp_replace(NEW.page_link, '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+', ' ', 'g'));
+          END IF;
+        
+          IF NEW.hr_fio ~ '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+' THEN
+            NEW.hr_fio := trim(regexp_replace(NEW.hr_fio, '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+', ' ', 'g'));
+          END IF;
+        
+          IF NEW.hr_tel ~ '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+' THEN
+            NEW.hr_tel := trim(regexp_replace(NEW.hr_tel, '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+', ' ', 'g'));
+          END IF;
+        
+          IF NEW.hr_email ~ '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+' THEN
+            NEW.hr_email := trim(regexp_replace(NEW.hr_email, '[\s\u00a0\u180e\u2007\u200b-\u200f\u202f\u2060\ufeff]+', ' ', 'g'));
+          END IF;
+        
+          RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+        
+        CREATE OR REPLACE TRIGGER insert_into_trigger
+        BEFORE INSERT ON vacancies
+        FOR EACH ROW
+        EXECUTE PROCEDURE replace_spaces_func();
+        '''  # noqa
+    )
+
     logger.info("Table 'vacancies' in DB 'hh_results' ready for loading data.")
 
     db_conn.close()
 
 
-async def main():
+async def main() -> None:
+    """The main function."""
     main.db_conn: DBManager  # noqa
 
     logger.info('Create PySpark session...')
@@ -101,8 +160,7 @@ async def main():
     logger.info('PySpark session created.')
 
     logger.info('Extracting data and preparing warehouse started...')
-    # await asyncio.gather(extract_data(), prepare_warehouse())
-    await asyncio.gather(prepare_warehouse())
+    await asyncio.gather(extract_data(), prepare_warehouse())
     logger.info('Data extracted to CSV file and warehouse prepared for writing.')
 
     logger.info('Loading process started...')

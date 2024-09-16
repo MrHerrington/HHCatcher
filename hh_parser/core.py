@@ -113,17 +113,18 @@ def wait_less_timeout(driver: webdriver.Chrome, url: str = None) -> None:
         url (str, optional): Url to load. Defaults to None.
 
     """
-    driver.set_page_load_timeout(5)
-
     try:
+        driver.set_page_load_timeout(5)
+
         if url:
             driver.get(url)
         else:
             driver.refresh()
+
     except TimeoutException:
         driver.execute_script("window.stop();")
-
-    driver.set_page_load_timeout(driver.DEFAULT_PAGE_LOAD_TIMEOUT)  # noqa
+    finally:
+        driver.set_page_load_timeout(driver.DEFAULT_PAGE_LOAD_TIMEOUT)  # noqa
 
 
 ##########################

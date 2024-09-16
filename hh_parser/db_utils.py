@@ -4,6 +4,9 @@ This module performs utilities for database management.
 Functions:
     - get_db_password: The function returns the db password from the secrets file or system environment.
 
+Classes:
+    - DBManager: Class for comfortable work with database connection.
+
 """
 
 
@@ -41,6 +44,13 @@ def get_db_password(secrets_path: ty.Union[Path, str], secrets_env_var: str) -> 
 
 
 class DBManager:
+    """
+    Class for comfortable work with database connection.
+
+    Args:
+        conn_attrs (dict): Database connection attributes.
+
+    """
     def __init__(self, conn_attrs: dict) -> None:
         self.__conn_attrs = conn_attrs
         self.__conn = psycopg2.connect(
@@ -62,6 +72,7 @@ class DBManager:
         return self.__conn_attrs
 
     def execute_query(self, query: str) -> None:
+        """The method executes the query."""
         with self.__conn:
             with self.__conn.cursor() as cursor:
                 cursor.execute(query)
